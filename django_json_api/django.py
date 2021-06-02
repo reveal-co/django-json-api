@@ -102,6 +102,17 @@ def get_jsonapi_id(source: Model, path: str) -> Optional[Any]:
     return getattr(current_source, f"{attr}_id", None)
 
 
+def set_prefetched_value(source: Model, path: str, value: Any) -> None:
+    splitted_path = path.split("__")
+    attr = splitted_path[-1]
+    current_source = source
+    for relation in splitted_path[:-1]:
+        current_source = getattr(current_source, relation, None)
+        if current_source is None:
+            return
+    setattr(current_source, f"_cache_{attr}", value)
+
+
 def prefetch_jsonapi(model_instances: List[Model], related_lookups: Dict):
     data_to_prefetch = defaultdict(set)
     models = {}
@@ -120,7 +131,7 @@ def prefetch_jsonapi(model_instances: List[Model], related_lookups: Dict):
     for instance in model_instances:
         for attr, json_api_model in related_lookups.items():
             records = prefetched_data.get(json_api_model._meta.resource_type, {})
-            setattr(instance, f"_cache_{attr}", records.get(get_jsonapi_id(instance, attr)))
+            set_prefetched_value(instance, attr, records.get(get_jsonapi_id(instance, attr)))
 
 
 def model_from_related_path(model, path):
