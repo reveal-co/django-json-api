@@ -70,10 +70,9 @@ def test_prefetch_jsonapi():
     )
     assert instances[0]._cache_other == DummyRelated(pk=12)
     assert instances[0]._cache_related == DummyRelated(pk=137)
-    assert instances[0]._cache_extra_related__related == DummyRelated(pk=42)
+    assert instances[0].extra_related._cache_related == DummyRelated(pk=42)
     assert instances[1]._cache_other is None
     assert instances[1]._cache_related == DummyRelated(pk=42)
-    assert instances[1]._cache_extra_related__related is None
     DummyRelated.get_many.assert_called_once()
     DummyRelated.get_many = _get_many
 
