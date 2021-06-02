@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.1] - 2021-06-01
+- **Improvement on prefetch_json_api**
+  - Bear missing relations in lookups
+
 ## [0.2.0] - 2021-03-19
 - **Quality of life**
   - Bumping the project's version through `VERSION` resource will not require changes in test cases

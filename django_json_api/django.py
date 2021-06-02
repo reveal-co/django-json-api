@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from django.db.models import Manager, Model, QuerySet
 from django.db.models.fields import IntegerField
@@ -93,13 +93,13 @@ class RelatedJSONAPIField(IntegerField):
         return self.json_api_model(pk=value)
 
 
-def get_jsonapi_id(source, path):
+def get_jsonapi_id(source: Model, path: str) -> Optional[Any]:
     splitted_path = path.split("__")
     attr = splitted_path[-1]
     current_source = source
     for relation in splitted_path[:-1]:
-        current_source = getattr(current_source, relation)
-    return getattr(current_source, f"{attr}_id")
+        current_source = getattr(current_source, relation, None)
+    return getattr(current_source, f"{attr}_id", None)
 
 
 def prefetch_jsonapi(model_instances: List[Model], related_lookups: Dict):
