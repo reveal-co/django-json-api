@@ -95,18 +95,18 @@ class RelatedJSONAPIField(IntegerField):
 
 def get_jsonapi_id(source: Model, path: str) -> Optional[Any]:
     splitted_path = path.split("__")
-    attr = splitted_path[-1]
+    attr = splitted_path.pop(-1)
     current_source = source
-    for relation in splitted_path[:-1]:
+    for relation in splitted_path:
         current_source = getattr(current_source, relation, None)
     return getattr(current_source, f"{attr}_id", None)
 
 
 def set_prefetched_value(source: Model, path: str, value: Any) -> None:
     splitted_path = path.split("__")
-    attr = splitted_path[-1]
+    attr = splitted_path.pop(-1)
     current_source = source
-    for relation in splitted_path[:-1]:
+    for relation in splitted_path:
         current_source = getattr(current_source, relation, None)
         if current_source is None:
             return
