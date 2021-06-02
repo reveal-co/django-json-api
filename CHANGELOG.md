@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.2] - 2021-06-02
+- **Improvement on prefetch_json_api**
+  - Better handle nested relations
+
 ## [0.2.1] - 2021-06-01
 - **Improvement on prefetch_json_api**
   - Bear missing relations in lookups
