@@ -1,7 +1,9 @@
 from copy import deepcopy
 from typing import Iterator, List, Union
 
-from django_json_api.client import JSONAPIClient
+from rest_framework.status import HTTP_404_NOT_FOUND
+
+from django_json_api.client import JSONAPIClient, JSONAPIClientError
 
 
 class JSONAPIManager:
@@ -67,22 +69,29 @@ class JSONAPIManager:
         page_size = getattr(self.model._meta, "page_size", 50)
         page_number = 1
         while True:
-            page = client.get(
-                self.resource_type,
-                filters=self._filters,
-                include=self._include or None,
-                fields=self._fields,
-                sort=self._sort,
-                page_size=page_size,
-                page_number=page_number,
-            )
+            try:
+                page = client.get(
+                    self.resource_type,
+                    filters=self._filters,
+                    include=self._include or None,
+                    fields=self._fields,
+                    sort=self._sort,
+                    page_size=page_size,
+                    page_number=page_number,
+                )
+            except JSONAPIClientError as error:
+                if not (page_number > 1 and error.response.status_code == HTTP_404_NOT_FOUND):
+                    raise error
+                break
+
             included = page.get("included") or []
             data = page.get("data")
+            number_records = len(data)
+
             page_number += 1
             self.model.from_resources(included)
             yield from self.model.from_resources(data)
-            next_url = page.get("links", {}).get("next")
-            if next_url is None:
+            if number_records < page_size:
                 break
 
     def _fetch_all(self) -> List["JSONAPIModel"]:  # noqa

@@ -1,9 +1,16 @@
+from typing import Optional
 from urllib.parse import urlencode
 
 import pytest
 from django.core.cache import cache
 from requests_mock.mocker import Mocker
+from rest_framework.status import (
+    HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
+    HTTP_500_INTERNAL_SERVER_ERROR,
+)
 
+from django_json_api.client import JSONAPIClientError
 from django_json_api.manager import JSONAPIManager
 from tests.models import Dummy
 
@@ -17,16 +24,15 @@ PAGES = [
                     "name": f"Record #{10 * j + i + 1}",
                 },
             }
-            for i in range(0, 10)
+            for i in range(0, (8 if j == 4 else 10))
         ],
-        "links": {"next": None if j == 4 else "http://next"},
     }
     for j in range(0, 5)
 ]
 
 
 @pytest.fixture
-def pages():
+def pages() -> Mocker:
     with Mocker() as mocker:
         for i, page in enumerate(PAGES):
             params = {
@@ -45,7 +51,7 @@ def pages():
 
 
 @pytest.fixture
-def empty_page():
+def empty_page() -> Mocker:
     page = {
         "data": [],
         "meta": {"record_count": 0},
@@ -68,7 +74,7 @@ def empty_page():
         yield mocker
 
 
-def test_jsonapi_manager_sort():
+def test_jsonapi_manager_sort() -> None:
     manager = JSONAPIManager(Dummy)
     manager_with_sort = manager.sort("field1", "field2")
     manager_with_extended_sort = manager_with_sort.sort("field3")
@@ -77,7 +83,7 @@ def test_jsonapi_manager_sort():
     assert manager_with_extended_sort._sort == ["field1", "field2", "field3"]
 
 
-def test_jsonapi_manager_fields():
+def test_jsonapi_manager_fields() -> None:
     manager = JSONAPIManager(Dummy)
     manager_with_fields = manager.fields(related=["field1", "field2"])
     manager_with_extended_fields = manager_with_fields.fields(other=["field1"])
@@ -89,7 +95,7 @@ def test_jsonapi_manager_fields():
     }
 
 
-def test_jsonapi_manager_include():
+def test_jsonapi_manager_include() -> None:
     manager = JSONAPIManager(Dummy)
     manager_with_include = manager.include("related1", "related2")
     manager_with_extended_include = manager_with_include.include("related3")
@@ -98,7 +104,7 @@ def test_jsonapi_manager_include():
     assert manager_with_extended_include._include == ["related1", "related2", "related3"]
 
 
-def test_jsonapi_manager_filter():
+def test_jsonapi_manager_filter() -> None:
     manager = JSONAPIManager(Dummy)
     manager_with_filters = manager.filter(pk=42)
     manager_with_extended_filters = manager_with_filters.filter(name="Test")
@@ -107,15 +113,15 @@ def test_jsonapi_manager_filter():
     assert manager_with_extended_filters._filters == {"pk": 42, "name": "Test"}
 
 
-def test_jsonapi_manager_iterator(pages):
+def test_jsonapi_manager_iterator(pages: Mocker) -> None:
     manager = JSONAPIManager(Dummy)
     records = list(manager.iterator())
-    assert len(records) == 50
+    assert len(records) == 48
     assert all(map(lambda x: isinstance(x, Dummy), records))
-    assert list(map(lambda x: x.id, records)) == list(range(1, 51))
+    assert list(map(lambda x: x.id, records)) == list(range(1, 49))
 
 
-def test_jsonapi_manager_iterator_with_included():
+def test_jsonapi_manager_iterator_with_included() -> None:
     cache.clear()
     page = {
         "data": [
@@ -149,17 +155,54 @@ def test_jsonapi_manager_iterator_with_included():
     assert cache.get("jsonapi:tests:42").field == "Included Record"
 
 
-def test_jsonapi_manager_all(pages):
+def test_jsonapi_manager_all(pages: Mocker) -> None:
     manager = JSONAPIManager(Dummy)
     records = list(manager.all())
-    assert len(records) == 50
+    assert len(records) == 48
     assert manager._cache == records
     pages.reset_mock()
     assert manager.all() == records
     assert not pages.called
 
 
-def test_jsonapi_manager_count():
+@pytest.mark.parametrize(
+    "status_code,page_number,expected_number_of_records",
+    [
+        (HTTP_404_NOT_FOUND, 3, 20),
+        (HTTP_404_NOT_FOUND, 4, 30),
+        (HTTP_404_NOT_FOUND, 1, None),
+        (HTTP_500_INTERNAL_SERVER_ERROR, 3, None),
+        (HTTP_400_BAD_REQUEST, 4, None),
+    ],
+)
+def test_jsonapi_manager_all_handles_404_empty_page(
+    pages: Mocker,
+    status_code: int,
+    page_number: int,
+    expected_number_of_records: Optional[int],
+) -> None:
+    params = {
+        "include": "related",
+        "fields[tests]": "field,related",
+        "page[size]": 10,
+        "page[number]": page_number,
+    }
+    pages.register_uri(
+        "GET",
+        f"http://test/api/tests/?{urlencode(params)}",
+        status_code=status_code,
+    )
+    manager = JSONAPIManager(Dummy)
+
+    if expected_number_of_records is None:
+        with pytest.raises(JSONAPIClientError):
+            list(manager.all())
+    else:
+        records = list(manager.all())
+        assert len(records) == expected_number_of_records
+
+
+def test_jsonapi_manager_count() -> None:
     params = {
         "page[size]": 1,
         "filter[key]": "value",
@@ -180,32 +223,32 @@ def test_jsonapi_manager_count():
         assert manager.filter(key="value").count() == 137
 
 
-def test_jsonapi_manager_getitem(pages):
+def test_jsonapi_manager_getitem(pages: Mocker) -> None:
     manager = JSONAPIManager(Dummy)
     assert manager[5].pk == 6
 
 
-def test_jsonapi_manager_iter(pages):
+def test_jsonapi_manager_iter(pages: Mocker) -> None:
     manager = JSONAPIManager(Dummy)
-    assert len(list(iter(manager))) == 50
+    assert len(list(iter(manager))) == 48
     assert manager._cache
 
 
-def test_jsonapi_manager_bool_true(pages):
+def test_jsonapi_manager_bool_true(pages: Mocker) -> None:
     manager = JSONAPIManager(Dummy)
     result = bool(manager)
     expected = True
     assert result is expected
 
 
-def test_jsonapi_manager_bool_false(empty_page):
+def test_jsonapi_manager_bool_false(empty_page: Mocker) -> None:
     manager = JSONAPIManager(Dummy)
     result = bool(manager)
     expected = False
     assert result is expected
 
 
-def test_jsonapi_manager_get():
+def test_jsonapi_manager_get() -> None:
     cache.clear()
     document = {
         "data": {"id": "12", "type": "tests", "attributes": {}},
