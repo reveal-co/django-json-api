@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.3] - 2021-06-09
+- **Fix `_fetch_iterate`**
+  - With `x-no-count` true we collected only first page and stopped.
+  - Better handle pagination
+
 ## [0.2.2] - 2021-06-02
 - **Improvement on prefetch_json_api**
   - Better handle nested relations
