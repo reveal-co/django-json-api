@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.4] - 2021-10-29
+- Fix manager's `.prefetch_jsonapi(...)` to be silently ignored when using `.values(...)` or `.values_list(...)`.
+    - It used to raise an exception
+
+
 ## [0.2.3] - 2021-06-09
 - **Fix `_fetch_iterate`**
   - With `x-no-count` true we collected only first page and stopped.

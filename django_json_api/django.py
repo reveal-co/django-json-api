@@ -3,8 +3,10 @@ from typing import Any, Dict, List, Optional, Type
 
 from django.db.models import Manager, Model, QuerySet
 from django.db.models.fields import IntegerField
+from django.db.models.query import ModelIterable
 
 __all__ = ("RelatedJSONAPIField",)
+
 
 from django_json_api.models import JSONAPIModel
 
@@ -161,8 +163,9 @@ class WithJSONApiQuerySet(QuerySet):
         return clone
 
     def _do_prefetch_jsonapi(self):
-        prefetch_jsonapi(self._result_cache, self._prefetch_jsonapi_lookups)
-        self._prefetched_jsonapi = True
+        if issubclass(self._iterable_class, ModelIterable):
+            prefetch_jsonapi(self._result_cache, self._prefetch_jsonapi_lookups)
+            self._prefetched_jsonapi = True
 
     def _fetch_all(self):
         super()._fetch_all()
