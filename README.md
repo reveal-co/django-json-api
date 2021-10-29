@@ -2,7 +2,7 @@
 
 [![PyPI version](https://badge.fury.io/py/django-json-api.svg)](https://badge.fury.io/py/django-json-api)
 [![codecov](https://codecov.io/gh/share-work/django-json-api/branch/develop/graph/badge.svg?token=hTGA39HrJV)](https://codecov.io/gh/share-work/django-json-api)
-[![Sharework](https://circleci.com/gh/share-work/django-json-api.svg?style=shield&circle-token=727d6ee289cf310d7f2a473d02574506f6ea8ef7)](https://app.circleci.com/pipelines/github/share-work/django-json-api)
+[![Reveal](https://circleci.com/gh/reveal-co/django-json-api.svg?style=shield&circle-token=727d6ee289cf310d7f2a473d02574506f6ea8ef7)](https://app.circleci.com/pipelines/github/reveal-co/django-json-api)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 
@@ -22,7 +22,7 @@ pip install django-json-api
 You can also install from the source:
 
 ```sh
-git clone git@github.com:share-work/django-json-api.git
+git clone git@github.com:reveal-co/django-json-api.git
 cd django-json-api
 git checkout main
 pip install -e .
@@ -71,7 +71,7 @@ Now, querying companies from microservice B is as easy as:
 
 ```python
   Company.objects.all()
-  Company.objects.filter(name="Sharework")
+  Company.objects.filter(name="Reveal")
   Company.objects.iterator()
   ...
 ```
