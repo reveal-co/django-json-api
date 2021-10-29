@@ -93,3 +93,16 @@ def test_with_jsonapi_manager():
                 "other": DummyRelated,
             },
         )
+
+
+@pytest.mark.django_db
+def test_prefetch_json_api_does_not_break_when_queryset_does_not_return_models():
+    DummyModel.objects.create(pk=42, related_id=12)
+    manager = WithJSONApiManager()
+    manager.model = DummyModel
+
+    values_queryset = manager.filter(id=42).prefetch_jsonapi("related").values("pk")
+    assert list(values_queryset) == [{"pk": 42}]
+
+    values_list_queryset = manager.filter(id=42).prefetch_jsonapi("related").values_list("pk")
+    assert list(values_list_queryset) == [(42,)]
