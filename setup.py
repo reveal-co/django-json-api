@@ -28,7 +28,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     name="django-json-api",
-    package_data={"django_json_api": ["resources/VERSION"]},
+    package_data={"django_json_api": ["resources/VERSION", "py.typed"]},
     packages=find_packages(),
     python_requires=">=3.8",
     url="https://github.com/share-work/django-json-api",
