@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Type, TypeVar, Union
 
+from django.conf import settings
 from django.core.cache import cache
 
 from django_json_api.base import JSONAPIModelBase
@@ -86,6 +87,10 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
     @classmethod
     def cache_key(cls: Type[T], pk: Union[str, int]) -> str:
         resource_type = cls._meta.resource_type
+        cache_key_version = getattr(settings, "DJANGO_JSON_API_CACHE_KEY_VERSION", None)
+        if cache_key_version:
+            versioned_resource_type = f"{resource_type}:{cache_key_version}"
+            return f"jsonapi:{versioned_resource_type}:{pk}"
         return f"jsonapi:{resource_type}:{pk}"
 
     @classmethod
