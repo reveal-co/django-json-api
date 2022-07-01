@@ -1,6 +1,7 @@
 from unittest import TestCase, mock
 
 from django.core.cache import cache
+from django.test import override_settings
 
 from django_json_api.models import JSONAPIModel
 from tests.models import Dummy
@@ -11,8 +12,12 @@ class JSONAPIModelBaseTestCase(TestCase):
         cache.clear()
         return super().setUp()
 
-    def test_cache_key(self):
+    def test_cache_key__no_version(self):
         self.assertEqual(Dummy.cache_key(42), "jsonapi:tests:42")
+
+    @override_settings(DJANGO_JSON_API_CACHE_KEY_VERSION="v2")
+    def test_cache_key__with_version(self):
+        self.assertEqual(Dummy.cache_key(42), "jsonapi:tests:v2:42")
 
     def test_eq(self):
         self.assertEqual(
