@@ -102,6 +102,17 @@ In case of larger querysets, you might want to prefetch the relations as you do 
 that, you imbue `User`'s manager using `WithJSONApiQuerySet`, which will grant the manager a new
 method: `prefetch_jsonapi`.
 
+If the remote microservice API supports PATCH request, you can save a record's attributes:
+
+```python
+user = User.objects.get(pk=1)
+print(user.name)  # Joe
+user.name = "Jack"
+user.save(update_fields=["name"]) # This will perform a PATCH HTTP request
+updated_user = User.from_cache(pk=1)
+print(updated_user.name)  # Jack: the updated record with its new attributes is cached
+```
+
 
 ## License
 
