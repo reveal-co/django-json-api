@@ -1,9 +1,10 @@
 from unittest import TestCase, mock
 
+import pytest
 from django.core.cache import cache
 from django.test import override_settings
 
-from django_json_api.models import JSONAPIModel
+from django_json_api.models import JSONAPIError, JSONAPIModel
 from tests.models import Dummy
 
 
@@ -126,3 +127,32 @@ class JSONAPIModelBaseTestCase(TestCase):
         record = JSONAPIModel.from_resource(resource)
         self.assertIsInstance(record, Dummy)
         self.assertEqual(record.id, 137)
+
+
+def test_save_record_with_no_id() -> None:
+    model = Dummy()
+    with pytest.raises(JSONAPIError):
+        model.save()
+
+
+def test_save_record_with_update_fields() -> None:
+    model = Dummy(pk=1)
+    with pytest.raises(JSONAPIError):
+        model.save()
+
+
+def test_save_record() -> None:
+    model = Dummy(pk=1, field="updated_value")
+    with mock.patch.object(model, "objects") as mocked_manager:
+        mocked_manager.client.patch.return_value = {
+            "data": {"id": "1", "type": "tests", "attributes": {"field": "actual_updated_value"}},
+        }
+        model.save(update_fields=["field"])
+        mocked_manager.client.patch.assert_called_once_with(
+            resource_type="tests",
+            resource_id=1,
+            attributes={"field": "updated_value"},
+        )
+
+    from_cache = Dummy.from_cache(pk=1)
+    assert from_cache.field == "actual_updated_value"

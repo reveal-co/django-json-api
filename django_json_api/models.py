@@ -9,6 +9,10 @@ from django_json_api.base import JSONAPIModelBase
 T = TypeVar("T", bound="JSONAPIModel")
 
 
+class JSONAPIError(Exception):
+    pass
+
+
 def _find_model_class(resource_type: str) -> Type:
     for cls in JSONAPIModel.__subclasses__():
         if resource_type == cls._meta.resource_type:
@@ -133,3 +137,19 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
         fresh = self.objects.get(pk=self.pk, ignore_cache=True)
         self.__dict__ = fresh.__dict__
         self.cache()
+
+    def save(self: T, update_fields: Optional[List[str]] = None) -> T:
+        if self.pk is None:
+            raise JSONAPIError("Record creation not supported")
+
+        if update_fields is None:
+            raise JSONAPIError("Argument update_fields needed to update record")
+
+        update_data = {field: getattr(self, field) for field in update_fields}
+
+        update_record = self.objects.client.patch(
+            resource_type=self.JSONAPIMeta.resource_name,
+            resource_id=self.pk,
+            attributes=update_data,
+        )
+        return self.from_resource(update_record["data"])
