@@ -145,6 +145,14 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
         if update_fields is None:
             raise JSONAPIError("Argument update_fields needed to update record")
 
+        resource_type: str = self.JSONAPIMeta.resource_name
+
+        non_allowed_fields = list(set(update_fields).difference(set(self._meta.fields)))
+        if len(non_allowed_fields) > 0:
+            raise JSONAPIError(
+                f"Fields {non_allowed_fields} not present on resource {resource_type}"
+            )
+
         update_data = {field: getattr(self, field) for field in update_fields}
 
         update_record = self.objects.client.patch(

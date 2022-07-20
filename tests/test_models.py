@@ -135,10 +135,16 @@ def test_save_record_with_no_id() -> None:
         model.save()
 
 
-def test_save_record_with_update_fields() -> None:
+def test_save_record_without_update_fields() -> None:
     model = Dummy(pk=1)
     with pytest.raises(JSONAPIError):
         model.save()
+
+
+def test_save_record_with_wrong_update_fields() -> None:
+    model = Dummy(pk=1)
+    with pytest.raises(JSONAPIError):
+        model.save(update_fields=["field_not_in_meta"])
 
 
 def test_save_record() -> None:
