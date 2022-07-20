@@ -1,3 +1,4 @@
+import json
 from typing import Dict, List, Optional, Union
 from urllib.parse import urlencode
 
@@ -93,6 +94,25 @@ class JSONAPIClient:
         if params:
             url += "?" + urlencode(params)
         response = self.session.get(url)
+        if not response.ok:
+            raise JSONAPIClientError(f"HTTP Error: {response.status_code}", response=response)
+        return response.json()
+
+    def patch(
+        self,
+        resource_type: str,
+        resource_id: ResourceId,
+        attributes: Dict,
+    ) -> Dict:
+        url = self.url_for_resource(resource_type, resource_id=resource_id)
+        payload = {
+            "data": {
+                "type": resource_type,
+                "id": str(resource_id),
+                "attributes": attributes,
+            }
+        }
+        response = self.session.patch(url, data=json.dumps(payload))
         if not response.ok:
             raise JSONAPIClientError(f"HTTP Error: {response.status_code}", response=response)
         return response.json()

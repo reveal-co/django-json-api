@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.7] - 2022-07-20
+- Implement `save(...)` method on JSONAPIModel
+    - It was not implemented
+- Implement `patch(...)` method on JSONAPIClient
+    - It was not implemented
+
+## [0.2.6] - 2021-10-04
+- Typing rollback 
+
+## [0.2.5] - 2022-07-01
+- Add `DJANGO_JSON_API_CACHE_KEY_VERSION` as optional setting config, as a way to invalidate cache
+
 ## [0.2.4] - 2021-10-29
 - Fix manager's `.prefetch_jsonapi(...)` to be silently ignored when using `.values(...)` or `.values_list(...)`.
     - It used to raise an exception
