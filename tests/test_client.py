@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from unittest import mock
 from urllib.parse import urlencode
 
@@ -187,3 +188,37 @@ def test_jsonapi_get_unresolved_resource():
     client = JSONAPIClient()
     with pytest.raises(JSONAPIClientError, match=r'Cannot resolve resource "unresolvable"'):
         client.get("unresolvable")
+
+
+def test_jsonapi_client_patch(mock_requests):
+    mock_requests.register_uri(
+        "PATCH",
+        "http://test/api/tests/1/",
+        status_code=HTTPStatus.OK,
+        json={
+            "data": {
+                "type": "tests",
+                "id": "1",
+                "attribute": {
+                    "field": "value",
+                    "other_field": "other_value",
+                },
+            }
+        },
+    )
+    client = JSONAPIClient()
+    client.patch(resource_type="tests", resource_id=1, attributes={"field": "value"})
+    assert mock_requests.called
+
+
+def test_jsonapi_client_patch__error_response(mock_requests):
+    mock_requests.register_uri(
+        "PATCH",
+        "http://test/api/tests/1/",
+        status_code=HTTPStatus.NOT_FOUND,
+        json="Record not found",
+    )
+    client = JSONAPIClient()
+    with pytest.raises(JSONAPIClientError):
+        client.patch(resource_type="tests", resource_id=1, attributes={"field": "value"})
+    assert mock_requests.called
