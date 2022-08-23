@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.0] - 2022-08-23
+- Implement `prefetch_related(...)` method on JSONAPIManager
+  - It was not implemented
+  - It is meant to prevent n+1 issue on cache querying
+- Add optional parameter `prefetch_related` to method `get_many(...)` of JSONAPIModel
+  - It is meant to prevent n+1 issue on cache querying
+- Improve `prefetch_jsonapi` method used in `WithJSONApiQuerySet`
+  - Now bears nested jsonapi prefetch
+  - It is meant to prevent n+1 issue on cache querying
+
 ## [0.2.7] - 2022-07-20
 - Implement `save(...)` method on JSONAPIModel
     - It was not implemented
@@ -7,7 +17,7 @@
     - It was not implemented
 
 ## [0.2.6] - 2021-10-04
-- Typing rollback 
+- Typing rollback
 
 ## [0.2.5] - 2022-07-01
 - Add `DJANGO_JSON_API_CACHE_KEY_VERSION` as optional setting config, as a way to invalidate cache
