@@ -3,7 +3,6 @@ from unittest import mock
 from django.test import TestCase
 from rest_framework.exceptions import ValidationError
 from rest_framework.serializers import BaseSerializer
-from rest_framework_json_api.utils import get_included_serializers
 
 from django_json_api.client import JSONAPIClientError
 from django_json_api.rest_framework import ModelSerializer, get_default_relation_serializer
@@ -42,7 +41,7 @@ class JsonAPISerializerTestCase(TestCase):
         assert serializer.data == {"id": 12, "related": {"type": "related_records", "id": "42"}}
 
     def test_included_serializers(self):
-        serializers = get_included_serializers(DummySerializer)
+        serializers = DummySerializer.included_serializers
         self.assertIn("related", serializers)
         self.assertEqual(
             serializers["related"](DummyRelated(pk=42, name="Test")).data,
