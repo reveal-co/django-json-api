@@ -66,14 +66,18 @@ def test_prefetch_jsonapi():
     ]
     prefetch_jsonapi(
         instances,
-        {"other": DummyRelated, "related": DummyRelated, "extra_related__related": DummyRelated},
+        {
+            "other": (DummyRelated, ["any"]),
+            "related": (DummyRelated, ["other"]),
+            "extra_related__related": (DummyRelated, []),
+        },
     )
     assert instances[0]._cache_other == DummyRelated(pk=12)
     assert instances[0]._cache_related == DummyRelated(pk=137)
     assert instances[0].extra_related._cache_related == DummyRelated(pk=42)
     assert instances[1]._cache_other is None
     assert instances[1]._cache_related == DummyRelated(pk=42)
-    DummyRelated.get_many.assert_called_once()
+    DummyRelated.get_many.assert_called_once_with({137, 42, 12}, prefetch_related=["any", "other"])
     DummyRelated.get_many = _get_many
 
 
@@ -84,14 +88,16 @@ def test_with_jsonapi_manager():
         instance = DummyModel.objects.create(pk=42, related=related)
         manager = WithJSONApiManager()
         manager.model = DummyModel
-        qset = manager.filter(id__gt=12).prefetch_jsonapi("related").prefetch_jsonapi("other").all()
+        qset = (
+            manager.filter(id__gt=12)
+            .prefetch_jsonapi("related")
+            .prefetch_jsonapi("other", "other__related", "other__related__other")
+            .all()
+        )
         assert list(qset) == [instance]
         prefetch_jsonapi_mock.assert_called_once_with(
             [instance],
-            {
-                "related": DummyRelated,
-                "other": DummyRelated,
-            },
+            {"related": (DummyRelated, []), "other": (DummyRelated, ["related", "related__other"])},
         )
 
 
