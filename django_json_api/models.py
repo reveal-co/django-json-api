@@ -1,10 +1,12 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Type, TypeVar, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union
 
 from django.conf import settings
 from django.core.cache import cache
 
 from django_json_api.base import JSONAPIModelBase
+from django_json_api.fields import Relationship
+from django_json_api.manager import get_base_lookup_to_nested_lookups_mapping
 
 T = TypeVar("T", bound="JSONAPIModel")
 
@@ -13,7 +15,7 @@ class JSONAPIError(Exception):
     pass
 
 
-def _find_model_class(resource_type: str) -> Type:
+def _find_model_class(resource_type: str) -> Type["JSONAPIModel"]:
     for cls in JSONAPIModel.__subclasses__():
         if resource_type == cls._meta.resource_type:
             return cls
@@ -102,19 +104,79 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
         return cache.get(cls.cache_key(pk))
 
     @classmethod
-    def get_many(cls: Type[T], record_ids: List[Union[str, int]]) -> Dict:
+    def get_many(cls: Type[T], record_ids: List[Union[str, int]], prefetch_related=None) -> Dict:
+        _prefetch_related = prefetch_related or []
         cache_keys = [cls.cache_key(pk) for pk in record_ids]
-        records = {record.id: record for record in cache.get_many(cache_keys).values()}
-        missing = set(map(int, filter(bool, record_ids))) - set(records)
+        cached_records = {record.id: record for record in cache.get_many(cache_keys).values()}
+        missing = set(map(int, filter(bool, record_ids))) - set(cached_records)
+        records, records_to_re_fetch = cls._handle_prefetching(cached_records, _prefetch_related)
+        missing.update(records_to_re_fetch)
+
         if missing:
             many_id_lookup = getattr(cls._meta, "many_id_lookup", None)
             if many_id_lookup:
-                for item in cls.objects.filter(**{many_id_lookup: ",".join(map(str, missing))}):
+                for item in cls.objects.prefetch_related(*_prefetch_related).filter(
+                    **{many_id_lookup: ",".join(map(str, missing))}
+                ):
                     records[item.id] = item
             else:
                 for missing_id in missing:
-                    records[missing_id] = cls.objects.get(pk=missing_id)
+                    records[missing_id] = cls.objects.prefetch_related(*_prefetch_related).get(
+                        pk=missing_id
+                    )
         return records
+
+    @classmethod
+    def _handle_prefetching(
+        cls: Type[T],
+        records: Dict[int, "JSONAPIModel"],
+        prefetch_related: List[str],
+    ) -> Tuple[Dict[int, "JSONAPIModel"], Set[int]]:
+        to_re_fetch = set()
+        base_lookup_to_nested_lookups = get_base_lookup_to_nested_lookups_mapping(prefetch_related)
+
+        for relationship, nested_relations_to_prefetch in base_lookup_to_nested_lookups.items():
+            identifiers_to_fetch = []
+            record_ids_to_related_ids = {}
+            relation = getattr(cls, relationship, None)
+            if relation is None or not isinstance(relation.field, Relationship):
+                continue
+            many_lookup = relation.field.many
+            for record in records.values():
+                if many_lookup and hasattr(record, f"{relationship}_identifiers"):
+                    identifiers = getattr(record, f"{relationship}_identifiers", [])
+                    identifiers_to_fetch.extend(identifiers)
+                    record_ids_to_related_ids[record.pk] = [
+                        int(resource["id"]) for resource in identifiers_to_fetch
+                    ]
+                elif hasattr(record, f"{relationship}_identifier"):
+                    resource = getattr(record, f"{relationship}_identifier")
+                    identifiers_to_fetch.append(resource)
+                    record_ids_to_related_ids[record.pk] = int(resource["id"])
+                else:
+                    to_re_fetch.add(record.pk)
+
+            resource_type = identifiers_to_fetch[0]["type"] if identifiers_to_fetch else None
+            model_class = _find_model_class(resource_type) if resource_type else None
+            results = (
+                model_class.get_many(
+                    record_ids=[resource["id"] for resource in identifiers_to_fetch],
+                    prefetch_related=nested_relations_to_prefetch,
+                )
+                if model_class
+                else {}
+            )
+            for record in records.values():
+                if many_lookup:
+                    related_ids = record_ids_to_related_ids.get(record.pk) or []
+                    cache_value = [
+                        results[related_id] for related_id in related_ids if related_id in results
+                    ]
+                else:
+                    related_id = record_ids_to_related_ids.get(record.pk)
+                    cache_value = results.get(related_id) if related_id else None
+                setattr(record, f"_{relationship}_cache", cache_value)
+        return records, to_re_fetch
 
     def cache(self: T) -> T:
         cache_expiration = getattr(self._meta, "cache_expiration", 24 * 60 * 60)
