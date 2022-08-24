@@ -25,3 +25,41 @@ class DummyRelated(models.JSONAPIModel):
 class DummyModel(Model):
     related = django.RelatedJSONAPIField(DummyRelated)
     other = django.RelatedJSONAPIField(DummyRelated, null=True)
+
+
+# {{ Role -> User -> Company
+
+
+class Company(models.JSONAPIModel):
+    class Meta:
+        resource_type = "companies"
+        api_url = "http://test/api"
+        page_size = 10
+
+    name = fields.Attribute()
+    users = fields.Relationship(many=True)
+
+
+class User(models.JSONAPIModel):
+    class Meta:
+        resource_type = "users"
+        api_url = "http://test/api"
+        page_size = 10
+        many_id_lookup = "id"
+
+    email = fields.Attribute()
+    company = fields.Relationship(many=False)
+    roles = fields.Relationship(many=True)
+
+
+class Role(models.JSONAPIModel):
+    class Meta:
+        resource_type = "roles"
+        api_url = "http://test/api"
+        page_size = 10
+
+    role_name = fields.Attribute()
+    user = fields.Relationship(many=False)
+
+
+# }}

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from django.db.models import Manager, Model, QuerySet
 from django.db.models.fields import IntegerField
@@ -117,31 +117,48 @@ def set_prefetched_value(source: Model, path: str, value: Any) -> None:
 
 def prefetch_jsonapi(model_instances: List[Model], related_lookups: Dict):
     data_to_prefetch = defaultdict(set)
+    resource_to_prefetch_lookups = defaultdict(list)
+
     models = {}
-    for instance in model_instances:
-        for path, json_api_model in related_lookups.items():
-            models[json_api_model._meta.resource_type] = json_api_model
+    for path, json_api_model_and_lookups in related_lookups.items():
+        json_api_model, prefetch_lookups = json_api_model_and_lookups
+        models[json_api_model._meta.resource_type] = json_api_model
+        resource_to_prefetch_lookups[json_api_model._meta.resource_type].extend(prefetch_lookups)
+
+        for instance in model_instances:
             value = get_jsonapi_id(instance, path)
             if value:
                 data_to_prefetch[json_api_model._meta.resource_type].add(value)
 
     prefetched_data = {
-        resource_type: models[resource_type].get_many(record_ids)
+        resource_type: models[resource_type].get_many(
+            record_ids, prefetch_related=resource_to_prefetch_lookups[resource_type]
+        )
         for resource_type, record_ids in data_to_prefetch.items()
     }
 
     for instance in model_instances:
-        for attr, json_api_model in related_lookups.items():
+        for attr, json_api_model_and_lookups in related_lookups.items():
+            json_api_model, _ = json_api_model_and_lookups
             records = prefetched_data.get(json_api_model._meta.resource_type, {})
             set_prefetched_value(instance, attr, records.get(get_jsonapi_id(instance, attr)))
 
 
-def model_from_related_path(model, path):
-    splitted_path = path.split("__")
+def model_and_prefetch_from_related_path(
+    model: Type[Model], path: str
+) -> Tuple[str, JSONAPIModel, List[str]]:
     current_model = model
-    for relation in splitted_path[:-1]:
-        current_model = current_model._meta.get_field(relation).related_model
-    return current_model._meta.get_field(splitted_path[-1]).json_api_model
+    for index, relation in enumerate(path.split("__")):
+        relation_field = current_model._meta.get_field(relation)
+        if hasattr(relation_field, "json_api_model"):
+            splitted_path = path.split("__", index + 1)
+            return (
+                "__".join(splitted_path[: index + 1]),
+                relation_field.json_api_model,
+                splitted_path[index + 1 :],
+            )
+        current_model = relation_field.related_model
+    raise ValueError(f"path {path} does not include valid JSONAPIModel")
 
 
 class WithJSONApiQuerySet(QuerySet):
@@ -157,9 +174,18 @@ class WithJSONApiQuerySet(QuerySet):
 
     def prefetch_jsonapi(self, *lookups):
         clone = self._clone()
-        clone._prefetch_jsonapi_lookups.update(
-            {related: model_from_related_path(self.model, related) for related in lookups}
-        )
+        for related in lookups:
+            path, json_api_model, lookup_to_prefetch = model_and_prefetch_from_related_path(
+                self.model,
+                related,
+            )
+            if path in clone._prefetch_jsonapi_lookups:
+                clone._prefetch_jsonapi_lookups[path][1].extend(lookup_to_prefetch)
+            else:
+                clone._prefetch_jsonapi_lookups[path] = (
+                    json_api_model,
+                    lookup_to_prefetch,
+                )
         return clone
 
     def _do_prefetch_jsonapi(self):

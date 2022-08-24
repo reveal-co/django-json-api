@@ -167,8 +167,12 @@ def test_relationship_descriptor_many_get():
     with mock.patch("django_json_api.fields.get_model") as get_model:
         instance = EmptyClass()
         instance.relation_identifiers = [{"id": "42", "type": "tests"}]
-        assert instance.relation == [get_model.return_value.objects.get.return_value]
+        dummy_42 = Dummy(pk=42)
+        get_model.return_value.get_many.return_value = {
+            42: dummy_42,
+        }
+        assert instance.relation == [dummy_42]
         get_model.assert_called_once_with("tests")
-        get_model.return_value.objects.get.assert_called_once_with(pk="42")
+        get_model.return_value.get_many.assert_called_once_with(record_ids=["42"])
         assert hasattr(instance, "_relation_cache")
     delattr(EmptyClass, "relation")

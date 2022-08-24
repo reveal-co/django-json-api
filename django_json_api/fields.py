@@ -1,4 +1,10 @@
+import typing
+from typing import Optional, Type
+
 from dateutil.parser import parse
+
+if typing.TYPE_CHECKING:
+    from django_json_api.models import JSONAPIModel
 
 
 def is_identifier(value):
@@ -15,7 +21,7 @@ def get_identifier(value):
     return None
 
 
-def get_model(resource_type):
+def get_model(resource_type: str) -> Optional[Type["JSONAPIModel"]]:
     from django_json_api.models import JSONAPIModel
 
     for klass in JSONAPIModel.__subclasses__():
@@ -49,10 +55,18 @@ class RelationshipDescriptor:
         if self.field.many:
             if not hasattr(obj, f"{self.field.name}_identifiers"):
                 obj.refresh_from_api()
-            result = [
-                get_model(resource["type"]).objects.get(pk=resource["id"])
-                for resource in getattr(obj, f"{self.field.name}_identifiers", [])
-            ]
+            identifiers = getattr(obj, f"{self.field.name}_identifiers", [])
+            resource_type = identifiers[0]["type"] if identifiers else None
+            resource_model = get_model(resource_type) if resource_type else None
+            result = (
+                list(
+                    resource_model.get_many(
+                        record_ids=[resource["id"] for resource in identifiers]
+                    ).values()
+                )
+                if resource_model is not None
+                else []
+            )
         else:
             if not hasattr(obj, f"{self.field.name}_identifier"):
                 obj.refresh_from_api()
