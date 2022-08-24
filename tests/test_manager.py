@@ -12,7 +12,7 @@ from rest_framework.status import (
 
 from django_json_api.client import JSONAPIClientError
 from django_json_api.manager import JSONAPIManager
-from tests.models import Dummy
+from tests.models import Company, Dummy, Role
 
 PAGES = [
     {
@@ -288,3 +288,247 @@ def test_jsonapi_manager_get() -> None:
         # Ignore cache
         assert manager.get(pk=12, ignore_cache=True) == record
         assert mocker.called
+
+
+def test_jsonapi_manager_iterator_with_prefetch__one_to_many() -> None:
+    cache.clear()
+    page = {
+        "data": [
+            {
+                "id": "137",
+                "type": "companies",
+                "attributes": {"name": "company 1"},
+                "relationships": {
+                    "users": {
+                        "data": [
+                            {
+                                "id": "1001",
+                                "type": "users",
+                            },
+                            {
+                                "id": "1002",
+                                "type": "users",
+                            },
+                        ]
+                    }
+                },
+            },
+            {
+                "id": "138",
+                "type": "companies",
+                "attributes": {"name": "company 2"},
+                "relationships": {
+                    "users": {
+                        "data": [
+                            {
+                                "id": "1003",
+                                "type": "users",
+                            },
+                        ]
+                    }
+                },
+            },
+        ],
+        "included": [
+            {
+                "id": "1001",
+                "type": "users",
+                "attributes": {
+                    "email": "email 1",
+                },
+                "relationships": {
+                    "roles": {
+                        "data": [
+                            {"id": "2001", "type": "roles"},
+                            {"id": "2002", "type": "roles"},
+                        ]
+                    }
+                },
+            },
+            {
+                "id": "1002",
+                "type": "users",
+                "attributes": {
+                    "email": "email 2",
+                },
+            },
+            {
+                "id": "1003",
+                "type": "users",
+                "attributes": {
+                    "email": "email 3",
+                },
+            },
+            {
+                "id": "1004",
+                "type": "users",
+                "attributes": {
+                    "email": "email 4",
+                },
+            },
+            {
+                "id": "2001",
+                "type": "roles",
+                "attributes": {
+                    "role_name": "role 1",
+                },
+            },
+            {
+                "id": "2002",
+                "type": "roles",
+                "attributes": {
+                    "role_name": "role 2",
+                },
+            },
+        ],
+    }
+    with Mocker() as mocker:
+        params = {
+            "include": "users,users.roles",
+            "fields[companies]": "name,users",
+            "page[size]": 10,
+            "page[number]": 1,
+        }
+        mocker.register_uri(
+            "GET",
+            f"http://test/api/companies/?{urlencode(params)}",
+            status_code=200,
+            json=page,
+        )
+        manager = JSONAPIManager(Company).prefetch_related("users__roles")
+        result = list(manager.iterator())
+
+        assert len(result) == 2
+
+        # Ensure redis is not used
+        cache.clear()
+        assert list(map(lambda user: user.pk, result[0].users)) == [1001, 1002]
+        assert list(map(lambda user: user.pk, result[1].users)) == [1003]
+        assert list(map(lambda user: user.pk, result[0].users[0].roles)) == [2001, 2002]
+
+
+def test_jsonapi_manager_iterator_with_prefetch__many_to_one() -> None:
+    cache.clear()
+    page = {
+        "data": [
+            {
+                "id": "2001",
+                "type": "roles",
+                "attributes": {"role_name": "role 1"},
+                "relationships": {
+                    "user": {
+                        "data": {
+                            "id": "1001",
+                            "type": "users",
+                        },
+                    }
+                },
+            },
+            {
+                "id": "2002",
+                "type": "roles",
+                "attributes": {"role_name": "role 2"},
+                "relationships": {
+                    "user": {
+                        "data": {
+                            "id": "1001",
+                            "type": "users",
+                        },
+                    }
+                },
+            },
+        ],
+        "included": [
+            {
+                "id": "1001",
+                "type": "users",
+                "attributes": {
+                    "email": "email 1",
+                },
+                "relationships": {"company": {"data": {"id": "137", "type": "companies"}}},
+            },
+            {
+                "id": "137",
+                "type": "companies",
+                "attributes": {
+                    "name": "company 1",
+                },
+            },
+        ],
+    }
+    with Mocker() as mocker:
+        params = {
+            "include": "user,user.company",
+            "fields[roles]": "role_name,user",
+            "page[size]": 10,
+            "page[number]": 1,
+        }
+        mocker.register_uri(
+            "GET",
+            f"http://test/api/roles/?{urlencode(params)}",
+            status_code=200,
+            json=page,
+        )
+        manager = JSONAPIManager(Role).prefetch_related("user__company")
+        result = list(manager.iterator())
+
+        assert len(result) == 2
+
+        # Ensure redis is not used
+        cache.clear()
+        assert result[0].user.company.pk == 137
+        assert result[1].user.company.pk == 137
+
+
+def test_jsonapi_manager_get_record_with_prefetch__many_to_one() -> None:
+    cache.clear()
+    page = {
+        "data": {
+            "id": "2001",
+            "type": "roles",
+            "attributes": {"role_name": "role 1"},
+            "relationships": {
+                "user": {
+                    "data": {
+                        "id": "1001",
+                        "type": "users",
+                    },
+                }
+            },
+        },
+        "included": [
+            {
+                "id": "1001",
+                "type": "users",
+                "attributes": {
+                    "email": "email 1",
+                },
+                "relationships": {"company": {"data": {"id": "137", "type": "companies"}}},
+            },
+            {
+                "id": "137",
+                "type": "companies",
+                "attributes": {
+                    "name": "company 1",
+                },
+            },
+        ],
+    }
+    with Mocker() as mocker:
+        params = {
+            "include": "user,user.company",
+            "fields[roles]": "role_name,user",
+        }
+        mocker.register_uri(
+            "GET",
+            f"http://test/api/roles/2001/?{urlencode(params)}",
+            status_code=200,
+            json=page,
+        )
+        manager = JSONAPIManager(Role).prefetch_related("user__company")
+        record = manager.get(pk=2001)
+
+        assert isinstance(record, Role)
+        # Ensure redis is not used
+        cache.clear()
+        assert record.user.company.pk == 137
