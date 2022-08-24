@@ -157,7 +157,7 @@ class JSONAPIManager:
                 if hasattr(record, f"{relationship}_identifiers"):
                     result = [
                         included_records_mapping[resource["type"]][resource["id"]]
-                        for resource in getattr(record, f"{relationship}_identifiers", [])
+                        for resource in getattr(record, f"{relationship}_identifiers")
                     ]
                     nested_records.extend(result)
                 elif hasattr(record, f"{relationship}_identifier"):

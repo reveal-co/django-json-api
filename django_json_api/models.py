@@ -136,7 +136,7 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
         base_lookup_to_nested_lookups = get_base_lookup_to_nested_lookups_mapping(prefetch_related)
 
         for relationship, nested_relations_to_prefetch in base_lookup_to_nested_lookups.items():
-            identifiers_to_fetch = []
+            identifiers_to_fetch: Set[Tuple[str, str]] = set()
             record_ids_to_related_ids = {}
             relation = getattr(cls, relationship, None)
             if relation is None or not isinstance(relation.field, Relationship):
@@ -144,23 +144,25 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
             many_lookup = relation.field.many
             for record in records.values():
                 if many_lookup and hasattr(record, f"{relationship}_identifiers"):
-                    identifiers = getattr(record, f"{relationship}_identifiers", [])
-                    identifiers_to_fetch.extend(identifiers)
+                    identifiers = getattr(record, f"{relationship}_identifiers")
+                    identifiers_to_fetch.update(
+                        {(identifier["type"], identifier["id"]) for identifier in identifiers}
+                    )
                     record_ids_to_related_ids[record.pk] = [
-                        int(resource["id"]) for resource in identifiers_to_fetch
+                        int(resource["id"]) for resource in identifiers
                     ]
                 elif hasattr(record, f"{relationship}_identifier"):
                     resource = getattr(record, f"{relationship}_identifier")
-                    identifiers_to_fetch.append(resource)
+                    identifiers_to_fetch.add((resource["type"], resource["id"]))
                     record_ids_to_related_ids[record.pk] = int(resource["id"])
                 else:
                     to_re_fetch.add(record.pk)
 
-            resource_type = identifiers_to_fetch[0]["type"] if identifiers_to_fetch else None
+            resource_type = list(identifiers_to_fetch)[0][0] if identifiers_to_fetch else None
             model_class = _find_model_class(resource_type) if resource_type else None
             results = (
                 model_class.get_many(
-                    record_ids=[resource["id"] for resource in identifiers_to_fetch],
+                    record_ids=[resource[1] for resource in identifiers_to_fetch],
                     prefetch_related=nested_relations_to_prefetch,
                 )
                 if model_class

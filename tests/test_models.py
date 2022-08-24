@@ -170,6 +170,7 @@ def test_get_many__with_prefetch__one_to_many() -> None:
     cache.clear()
     cached_role = Role(pk=2001, role_name="role 1")
     cached_user = User(pk=1001, email="email 1")
+    cached_user_2 = User(pk=1005, email="email 5")
     setattr(
         cached_user,
         "roles_identifiers",
@@ -178,8 +179,14 @@ def test_get_many__with_prefetch__one_to_many() -> None:
             {"id": "2002", "type": "roles"},
         ],
     )
+    setattr(
+        cached_user_2,
+        "roles_identifiers",
+        [],
+    )
     cached_but_incomplete_user = User(pk=1002, email="email 2")
     cached_company = Company(pk=1, name="company 1")
+    cached_company_2 = Company(pk=3, name="company 3")
     setattr(
         cached_company,
         "users_identifiers",
@@ -189,11 +196,20 @@ def test_get_many__with_prefetch__one_to_many() -> None:
             {"id": "1003", "type": "users"},
         ],
     )
+    setattr(
+        cached_company_2,
+        "users_identifiers",
+        [
+            {"id": "1005", "type": "users"},
+        ],
+    )
 
     cache.set(Role.cache_key(cached_role.pk), cached_role)
     cache.set(User.cache_key(cached_user.pk), cached_user)
     cache.set(User.cache_key(cached_but_incomplete_user.pk), cached_but_incomplete_user)
+    cache.set(User.cache_key(cached_user_2.pk), cached_user_2)
     cache.set(Company.cache_key(cached_company.pk), cached_company)
+    cache.set(Company.cache_key(cached_company_2.pk), cached_company_2)
 
     with Mocker() as mocker:
         companies_page = {
@@ -314,10 +330,10 @@ def test_get_many__with_prefetch__one_to_many() -> None:
             json=role_page,
         )
 
-        results = Company.get_many(record_ids=[1, 2], prefetch_related=["users__roles"])
+        results = Company.get_many(record_ids=[1, 2, 3], prefetch_related=["users__roles"])
 
     cache.clear()
-    assert len(results) == 2
+    assert len(results) == 3
     company_previously_cached = results[1]
 
     assert len(company_previously_cached.users) == 3
@@ -333,6 +349,11 @@ def test_get_many__with_prefetch__one_to_many() -> None:
     assert len(company_not_previously_cached.users) == 1
     assert company_not_previously_cached.users[0].pk == 1004
     assert company_not_previously_cached.users[0].roles[0].pk == 2004
+
+    company_previously_cached = results[3]
+    assert len(company_previously_cached.users) == 1
+    assert company_previously_cached.users[0].pk == 1005
+    assert len(company_previously_cached.users[0].roles) == 0
 
 
 def test_get_many__with_prefetch__many_to_one() -> None:
