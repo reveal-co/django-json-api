@@ -97,7 +97,7 @@ class ModelSerializer(
 
     def is_valid(self, raise_exception=False):
         try:
-            return super().is_valid(raise_exception)
+            return super().is_valid(raise_exception=raise_exception)
         except JSONAPIClientError as exception:
             if exception.response.status_code == HTTP_404_NOT_FOUND:
                 raise ValidationError("Failed to fetch RelatedJSONAPIField")

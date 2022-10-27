@@ -15,7 +15,7 @@ class JSONAPIError(Exception):
     pass
 
 
-def _find_model_class(resource_type: str) -> Type["JSONAPIModel"]:
+def _find_model_class(resource_type: str) -> Optional[Type["JSONAPIModel"]]:
     for cls in JSONAPIModel.__subclasses__():
         if resource_type == cls._meta.resource_type:
             return cls
@@ -48,28 +48,11 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
         return self.pk
 
     @staticmethod
-    def from_resource(resource_dict: dict, persist: Optional[bool] = True) -> T:
+    def from_resource(resource_dict: dict, persist: Optional[bool] = True) -> Optional[T]:
         cls = _find_model_class(resource_dict["type"])
         if cls:
-            kwargs = {}
-            data = {
-                **resource_dict.get("attributes", {}),
-                **{
-                    name: value["data"]
-                    for name, value in resource_dict.get("relationships", {}).items()
-                    if "data" in value
-                },
-            }
             existing_cache = cls.from_cache(resource_dict["id"])
-            for name, field in cls._meta.fields.items():
-                try:
-                    kwargs[name] = field.clean(data[name])
-                except KeyError:
-                    if existing_cache and hasattr(existing_cache, f"{name}_identifiers"):
-                        kwargs[name] = getattr(existing_cache, f"{name}_identifiers")
-                    elif existing_cache and hasattr(existing_cache, f"{name}_identifier"):
-                        kwargs[name] = getattr(existing_cache, f"{name}_identifier")
-            record = cls(id=resource_dict["id"], **kwargs)
+            record = cls._merge_resource_with_existing_cache(resource_dict, existing_cache)
             if persist:
                 record.cache()
             return record
@@ -85,9 +68,17 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
         for resource_type, resources in grouped_records.items():
             cls = _find_model_class(resource_type)
             if cls:
-                records.extend(
-                    cls.cache_many([cls.from_resource(item, persist=False) for item in resources])
-                )
+                resource_ids = [resource["id"] for resource in resources]
+                cached_records = cls._get_many_from_cache(resource_ids)
+                records_batch = [
+                    cls._merge_resource_with_existing_cache(
+                        resource,
+                        cached_records.get(int(resource["id"])),
+                    )
+                    for resource in resources
+                ]
+                cls.cache_many(records_batch)
+                records.extend(records_batch)
         return records
 
     @classmethod
@@ -100,14 +91,13 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
         return f"jsonapi:{resource_type}:{pk}"
 
     @classmethod
-    def from_cache(cls: Type[T], pk: Union[str, int]) -> T:
+    def from_cache(cls: Type[T], pk: Union[str, int]) -> Optional[T]:
         return cache.get(cls.cache_key(pk))
 
     @classmethod
     def get_many(cls: Type[T], record_ids: List[Union[str, int]], prefetch_related=None) -> Dict:
         _prefetch_related = prefetch_related or []
-        cache_keys = [cls.cache_key(pk) for pk in record_ids]
-        cached_records = {record.id: record for record in cache.get_many(cache_keys).values()}
+        cached_records = cls._get_many_from_cache(record_ids)
         missing = set(map(int, filter(bool, record_ids))) - set(cached_records)
         records, records_to_re_fetch = cls._handle_prefetching(cached_records, _prefetch_related)
         missing.update(records_to_re_fetch)
@@ -192,9 +182,11 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
     @classmethod
     def cache_many(cls: Type[T], instances: List[T]) -> List[T]:
         cache_expiration = getattr(cls._meta, "cache_expiration", 24 * 60 * 60)
-        cache.set_many(
-            {instance.cache_key(instance.pk): instance for instance in instances}, cache_expiration
-        )
+        if cache_expiration is None or (cache_expiration > 0):
+            cache.set_many(
+                {instance.cache_key(instance.pk): instance for instance in instances},
+                cache_expiration,
+            )
         return instances
 
     def refresh_from_api(self: T) -> None:
@@ -225,3 +217,36 @@ class JSONAPIModel(metaclass=JSONAPIModelBase):
             attributes=update_data,
         )
         return self.from_resource(update_record["data"])
+
+    @classmethod
+    def _get_many_from_cache(cls: Type[T], record_ids: List[int]) -> Dict[int, T]:
+        cache_expiration = getattr(cls._meta, "cache_expiration", None)
+        if cache_expiration == 0:
+            return {}
+        cache_keys = [cls.cache_key(pk) for pk in record_ids]
+        cached_records = {record.id: record for record in cache.get_many(cache_keys).values()}
+        return cached_records
+
+    @classmethod
+    def _merge_resource_with_existing_cache(
+        cls: Type[T], resource_dict: Dict, existing_cache: Optional[T]
+    ) -> T:
+        kwargs = {}
+        data = {
+            **resource_dict.get("attributes", {}),
+            **{
+                name: value["data"]
+                for name, value in resource_dict.get("relationships", {}).items()
+                if "data" in value
+            },
+        }
+        for name, field in cls._meta.fields.items():
+            try:
+                kwargs[name] = field.clean(data[name])
+            except KeyError:
+                if existing_cache and hasattr(existing_cache, f"{name}_identifiers"):
+                    kwargs[name] = getattr(existing_cache, f"{name}_identifiers")
+                elif existing_cache and hasattr(existing_cache, f"{name}_identifier"):
+                    kwargs[name] = getattr(existing_cache, f"{name}_identifier")
+        record = cls(id=resource_dict["id"], **kwargs)
+        return record
