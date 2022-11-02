@@ -84,7 +84,7 @@ class JSONAPIClient:
         params.update(self._get_fields(resource_type, fields))
         params.update(self._get_include(resource_type, include))
         if filters is not None:
-            params.update({f"filter[{field}]": value for field, value in filters.items()})
+            params.update({f"filter[{field}]": f"{value}" for field, value in filters.items()})
         if page_size is not None:
             params["page[size]"] = str(page_size)
         if page_number is not None:

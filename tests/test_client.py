@@ -1,3 +1,4 @@
+from enum import Enum
 from http import HTTPStatus
 from unittest import mock
 from urllib.parse import urlencode
@@ -8,6 +9,10 @@ from django.conf import settings
 from django.test import override_settings
 
 from django_json_api.client import JSONAPIClient, JSONAPIClientError
+
+
+class NameValues(str, Enum):
+    value = "value"
 
 
 @pytest.fixture
@@ -135,6 +140,21 @@ def test_jsonapi_client_get_with_sort(mock_requests):
     mock_requests.get(url, json="{}")
     client = JSONAPIClient()
     client.get("related_records", sort=["-name", "other_related"])
+    assert mock_requests.called
+    assert mock_requests.last_request.url == url
+
+
+@pytest.mark.parametrize("value", ("value", NameValues.value))
+def test_jsonapi_client_get_with_filter(mock_requests, value):
+    expected_params = {
+        "fields[related_records]": "name,other_related",
+        "include": "other_related",
+        "filter[name]": "value",
+    }
+    url = f"http://example.com/related-records/?{urlencode(expected_params)}"
+    mock_requests.get(url, json="{}")
+    client = JSONAPIClient()
+    client.get("related_records", filters={"name": value})
     assert mock_requests.called
     assert mock_requests.last_request.url == url
 
