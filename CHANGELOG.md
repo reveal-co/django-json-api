@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] - 2022-11-02
+- Support passing Enums in `filter(...)`
+
+## [0.3.2] - 2022-10-27
+- Cache performance improvements
+
 ## [0.3.0] - 2022-08-23
 - Implement `prefetch_related(...)` method on JSONAPIManager
   - It was not implemented
