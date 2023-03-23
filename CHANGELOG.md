@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.1.0] - 2023-03-23
+- Support dynamic auth on client, by passing `auth` of type `requests.auth.AuthBase`
+
 ## [0.3.2] - 2022-11-02
 - Support passing Enums in `filter(...)`
 
