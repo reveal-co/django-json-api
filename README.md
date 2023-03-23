@@ -130,8 +130,9 @@ class CustomJWTAuth:
 	self.subject = subject
 
     def __call__(self: "CustomJWTAuth", request: requests.Request) -> requests.Request:
+        iat = int(time.time())
     	token = jwt.encode(
-	    {"sub": self.subject, "iat": int(time.time()), "aud": self.audience},
+	    {"sub": self.subject, "iat": iat, "exp": iat + 60, "aud": self.audience},
 	    self.secret,
 	    "HS256",
 	)
