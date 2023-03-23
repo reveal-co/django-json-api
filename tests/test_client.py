@@ -242,3 +242,20 @@ def test_jsonapi_client_patch__error_response(mock_requests):
     with pytest.raises(JSONAPIClientError):
         client.patch(resource_type="tests", resource_id=1, attributes={"field": "value"})
     assert mock_requests.called
+
+
+def test_jsonapi_client__support_dynamic_auth(mock_requests) -> None:
+    mock_requests.register_uri(
+        "GET", "http://test/api/tests/", status_code=HTTPStatus.OK, json={"data": []}
+    )
+
+    def auth_callable(request):
+        request.headers["Authorization"] = "Bearer 123"
+        return request
+
+    client = JSONAPIClient(auth=auth_callable)
+
+    client.get(resource_type="tests")
+
+    assert mock_requests.called
+    assert mock_requests.last_request.headers["Authorization"] == "Bearer 123"
