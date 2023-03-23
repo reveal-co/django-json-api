@@ -113,6 +113,35 @@ updated_user = User.from_cache(pk=1)
 print(updated_user.name)  # Jack: the updated record with its new attributes is cached
 ```
 
+## Authentication
+
+It is possible to path a `auth` parameter to the `JSONAPIClient` in order to dynamically set the authorization headers on
+requests before sending them to the remote HTTP server.
+
+```python
+import jwt
+import time
+
+
+class CustomJWTAuth:
+    def __init__(self: "CustomJWTAuth", subject: str, secret: str, audience: str) -> None:
+    	self.audience = audience
+    	self.secret = secret
+	self.subject = subject
+
+    def __call__(self: "CustomJWTAuth", request: requests.Request) -> requests.Request:
+    	token = jwt.encode(
+	    {"sub": self.subject, "iat": int(time.time()), "aud": self.audience},
+	    self.secret,
+	    "HS256",
+	)
+	request.headers["Authorization"] = f"Bearer {token}"
+	return request
+
+# This client will generate a new signed JWT for each request
+client = JSONAPIClient(auth=CustomJWTAuth("myService", "*******", "jsonapi"))
+```
+
 
 ## License
 
