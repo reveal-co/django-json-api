@@ -22,8 +22,10 @@ class JSONAPIClientError(Exception):
 
 
 class JSONAPIClient:
-    def __init__(self):
+    def __init__(self, auth: Optional[requests.auth.AuthBase] = None):
         self.session = requests.Session()
+        if auth is not None:
+            self.session.auth = auth
         self.session.headers.update(
             {
                 "Content-Type": "application/vnd.api+json",
