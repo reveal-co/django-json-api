@@ -25,6 +25,7 @@ class JSONAPIModelBase(type):
         new_class._meta = meta
         new_class._meta.model = new_class
         new_class._meta.fields = {}
+        new_class._meta.auth = getattr(meta, "auth", None)
 
         class JSONAPIMeta:
             resource_name = new_class._meta.resource_type
