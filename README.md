@@ -118,6 +118,8 @@ print(updated_user.name)  # Jack: the updated record with its new attributes is 
 It is possible to path a `auth` parameter to the `JSONAPIClient` in order to dynamically set the authorization headers on
 requests before sending them to the remote HTTP server.
 
+In a similar way, it is possible to specify `auth` in the models' `Meta`.
+
 ```python
 import jwt
 import time
@@ -141,6 +143,12 @@ class CustomJWTAuth:
 
 # This client will generate a new signed JWT for each request
 client = JSONAPIClient(auth=CustomJWTAuth("myService", "*******", "jsonapi"))
+
+# This model will rely on JWT as well when fetching data from the remote service
+class ModelWithJWT(JSONAPIModel):
+    class Meta:
+        resource_type = "examples"
+        auth = CustomJWTAuth("myService", "*****", "jsonapi")
 ```
 
 
