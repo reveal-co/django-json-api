@@ -21,7 +21,7 @@ def get_base_lookup_to_nested_lookups_mapping(lookups: List[str]) -> Dict[str, L
 
 class JSONAPIManager:
     def __init__(self, model, **kwargs):
-        self.client = JSONAPIClient()
+        self.client = JSONAPIClient(auth=model._meta.auth)
         self.model = model
         self._fields = kwargs.get("fields", {})
         self._prefetch_related = kwargs.get("prefetch_related", [])

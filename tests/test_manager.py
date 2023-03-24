@@ -12,7 +12,7 @@ from rest_framework.status import (
 
 from django_json_api.client import JSONAPIClientError
 from django_json_api.manager import JSONAPIManager
-from tests.models import Company, Dummy, Role
+from tests.models import Company, Dummy, DummyWithAuth, Role
 
 PAGES = [
     {
@@ -72,6 +72,11 @@ def empty_page() -> Mocker:
             json=page,
         )
         yield mocker
+
+
+def test_jsonapi_manager_uses_auth_from_model() -> None:
+    manager = JSONAPIManager(DummyWithAuth)
+    assert manager.client.session.auth == DummyWithAuth._meta.auth
 
 
 def test_jsonapi_manager_sort() -> None:
