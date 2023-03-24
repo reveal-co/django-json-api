@@ -1,6 +1,15 @@
+import requests
 from django.db.models import Model
 
 from django_json_api import django, fields, models
+
+
+class CustomAuth(requests.auth.AuthBase):
+    def __call__(
+        self: "CustomAuth", request: requests.models.PreparedRequest
+    ) -> requests.models.PreparedRequest:
+        request.headers["Authorization"] = "Bearer 12345"
+        return request
 
 
 class Dummy(models.JSONAPIModel):
@@ -20,6 +29,17 @@ class DummyRelated(models.JSONAPIModel):
 
     name = fields.Attribute()
     other_related = fields.Relationship()
+
+
+class DummyWithAuth(models.JSONAPIModel):
+    class Meta:
+        resource_type = "tests_with_auth"
+        api_url = "http://test/api-with-auth"
+        page_size = 10
+        auth = CustomAuth()
+
+    field = fields.Attribute()
+    related = fields.Relationship()
 
 
 class DummyModel(Model):

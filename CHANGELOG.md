@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.2.0] - 2023-03-24
+- Support dynamic auth at the model level
+
 ## [1.1.0] - 2023-03-23
 - Support dynamic auth on client, by passing `auth` of type `requests.auth.AuthBase`
 
