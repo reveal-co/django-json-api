@@ -21,8 +21,8 @@ def get_base_lookup_to_nested_lookups_mapping(lookups: List[str]) -> Dict[str, L
 
 class JSONAPIManager:
     def __init__(self, model, **kwargs):
-        self.client = JSONAPIClient(auth=model._meta.auth)
         self.model = model
+        self.client = self._get_client()
         self._fields = kwargs.get("fields", {})
         self._prefetch_related = kwargs.get("prefetch_related", [])
         self._include = kwargs.get("include", [])
@@ -30,6 +30,9 @@ class JSONAPIManager:
         self._filters = kwargs.get("filters", {})
         self._sort = kwargs.get("sort", [])
         self._cache = None
+
+    def _get_client(self) -> JSONAPIClient:
+        return JSONAPIClient(auth=self.model._meta.auth)
 
     def modify(self, **kwargs) -> "JSONAPIManager":
         _fields = {
@@ -85,7 +88,7 @@ class JSONAPIManager:
         )
 
     def _fetch_iterate(self) -> Iterator:
-        client = JSONAPIClient()
+        client = self._get_client()
         client.session.headers["X-No-Count"] = "true"
         page_size = getattr(self.model._meta, "page_size", 50)
         page_number = 1
